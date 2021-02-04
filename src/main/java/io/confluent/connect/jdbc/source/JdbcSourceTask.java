@@ -17,6 +17,7 @@ package io.confluent.connect.jdbc.source;
 
 import java.util.TimeZone;
 import org.apache.kafka.common.config.ConfigException;
+import org.apache.kafka.common.errors.TimeoutException;
 import org.apache.kafka.common.utils.SystemTime;
 import org.apache.kafka.common.utils.Time;
 import org.apache.kafka.connect.errors.ConnectException;
@@ -316,6 +317,10 @@ public class JdbcSourceTask extends SourceTask {
   public void stop() throws ConnectException {
     log.info("Stopping JDBC source task");
     running.set(false);
+
+    synchronized (this) {
+      this.notifyAll();
+    }
     // All resources are closed at the end of 'poll()' when no longer running or
     // if there is an error
   }
@@ -360,7 +365,12 @@ public class JdbcSourceTask extends SourceTask {
 
         if (sleepMs > 0) {
           log.trace("Waiting {} ms to poll {} next", nextUpdate - now, querier.toString());
-          time.sleep(sleepMs);
+
+          try {
+            time.waitObject(this, () -> false, sleepMs);
+          } catch (TimeoutException | InterruptedException e) {
+            log.trace("Woke after waiting {} millis", time.milliseconds() - now);
+          }
           continue; // Re-check stop flag before continuing
         }
       }

@@ -61,6 +61,6 @@ public class MockTime implements Time {
 
     @Override
     public void waitObject(Object obj, Supplier<Boolean> condition, long timeoutMs) {
-        throw new UnsupportedOperationException();
+        this.sleep(timeoutMs);
     }
 }
